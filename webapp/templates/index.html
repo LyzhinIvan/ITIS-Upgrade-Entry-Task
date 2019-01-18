@@ -1,0 +1,429 @@
+<!doctype html>
+<title>Hello from Flask</title>
+<link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+<link rel="stylesheet" type="text/css" href="https://stackpath.bootstrapcdn.com/bootstrap/4.2.1/css/bootstrap.min.css">
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.2.1/js/bootstrap.min.js"></script>
+
+<script type="text/javascript">
+
+    var minDate = "{{min_date}}";
+    var maxDate = "{{max_date}}";
+    var chart;
+
+    function onLoad() {
+        window.chartBlock = document.getElementById("chart_block");
+        window.reportSelector = document.getElementById("report_selector");
+        window.categorySelector = document.getElementById("category_selector");
+        window.categorySelectorBlock = document.getElementById("category_selector_block");
+        window.dateSelectBlock = document.getElementById("date_select_block");
+        window.startDate = document.getElementById("start_date");
+        window.startDate.value = minDate;
+        window.endDate = document.getElementById("end_date");
+        window.endDate.value = maxDate;
+    }
+
+    function hide(element) {
+        element.setAttribute("hidden", "hidden")
+    }
+
+    function show(element) {
+        element.removeAttribute("hidden");
+    }
+
+    function showActionsByCountryReport() {
+        $.ajax("/actions_by_country", {
+            success: function(data) {
+                show(window.chartBlock);
+                data = JSON.parse(data);
+                labels = data.map(element => element["country"]);
+                values = data.map(element => element["count"]);
+                var chartConfig = {
+                    chart: {
+                        type: 'bar'
+                    },
+                    title: {
+                        text: 'Количество действий по странам',
+                        align: 'center',
+                        margin: 10,
+                        floating: false
+                    },
+                    plotOptions: {
+                        bar: {
+                            horizontal: true
+                        }
+                    },
+                    dataLabels: {
+                        enabled: false
+                    },
+                    series: [{
+                        name: 'actions',
+                        data: values
+                    }],
+                    xaxis: {
+                        categories: labels,
+                        position: 'top',
+                        labels: {
+                            offsetY: -15
+                        },
+                        axisTicks: {
+                            offsetY: -5
+                        }
+                    }
+                };
+                if (chart) chart.destroy();
+                chart = new ApexCharts(
+                    window.chartBlock,
+                    chartConfig
+                );
+                chart.render();
+            }
+        });
+    }
+
+    function showInterestsByCountryReport() {
+        $.ajax("/interests_by_country/" + categorySelector.value, {
+            success: function(data) {
+                show(window.chartBlock);
+                show(window.categorySelectorBlock);
+                data = JSON.parse(data);
+                labels = data.map(element => element["country"]);
+                values = data.map(element => element["count"]);
+                var chartConfig = {
+                    chart: {
+                        type: 'bar'
+                    },
+                    title: {
+                        text: 'Количество запросов по странам',
+                        align: 'center',
+                        margin: 10,
+                        floating: false
+                    },
+                    plotOptions: {
+                        bar: {
+                            horizontal: true
+                        }
+                    },
+                    dataLabels: {
+                        enabled: false
+                    },
+                    series: [{
+                        data: values
+                    }],
+                    xaxis: {
+                        categories: labels,
+                        position: 'top',
+                        labels: {
+                            offsetY: -15
+                        },
+                        axisTicks: {
+                            offsetY: -5
+                        }
+                    }
+                };
+                chart = new ApexCharts(
+                    window.chartBlock,
+                    chartConfig
+                );
+                chart.render();
+            }
+        });
+    }
+
+    function showRequestsByTimeReport() {
+        $.ajax("/requests_by_time", {
+            success: function(data) {
+                show(window.chartBlock);
+                data = JSON.parse(data);
+                labels = Object.keys(data);
+                values = Object.values(data);
+                var series = [];
+                ["night", "morning", "afternoon", "evening"].forEach(function(partOfDay) {
+                    series.push({
+                        name: partOfDay,
+                        data: data.categories.ids.map(function(category) { 
+                            return data[partOfDay][category] || 0; 
+                        })
+                    })
+                });
+                var chartConfig = {
+                    chart: {
+                        type: 'bar'
+                    },
+                    title: {
+                        text: 'Количество запросов по времени дня',
+                        align: 'center',
+                        margin: 10,
+                        floating: false
+                    },
+                    dataLabels: {
+                        enabled: false
+                    },
+                    series: series,
+                    xaxis: {
+                        categories: data.categories.names
+                    }
+                };
+                chart = new ApexCharts(
+                    window.chartBlock,
+                    chartConfig
+                );
+                chart.render();
+            }
+        });
+    }
+
+    function showSiteLoadReport() {
+        $.ajax("/site_load", {
+            success: function(data) {
+                show(window.chartBlock);
+                data = JSON.parse(data);
+                values = data.map(element => [element["hour"], element["requests"]]);
+                var chartConfig = {
+                    chart: {
+                        type: 'area',
+                        zoom: {
+                            type: 'x',
+                            enabled: true
+                        },
+                        toolbar: {
+                            autoSelected: 'zoom'
+                        }
+                    },
+                    title: {
+                        text: 'Почасовая нагрузка на сайт',
+                        align: 'center',
+                        margin: 10,
+                        floating: false
+                    },
+                    dataLabels: {
+                        enabled: false
+                    },
+                    series: [{
+                        name: 'Запросы',
+                        data: values
+                    }],
+                    xaxis: {
+                        type: 'datetime'
+                    },
+                    tooltip: {
+                        x: {
+                            format: 'dd MMM HH:mm'
+                        }
+                    }
+                };
+                chart = new ApexCharts(
+                    window.chartBlock,
+                    chartConfig
+                );
+                chart.render();
+            }
+        });
+    }
+
+    function showRelatedCategoriesReport() {
+        var category = categorySelector.value;
+        $.ajax("/related_categories", {
+            success: function(data) {
+                show(window.chartBlock);
+                data = JSON.parse(data);
+                var series = [];
+                for (var cat1 in data) {
+                    var ser = [];
+                    for (var cat2 in data[cat1]) {
+                        ser.push({
+                            'x': cat2,
+                            'y': data[cat1][cat2]
+                        });
+                    }
+                    series.push({
+                        'name': cat1,
+                        'data': ser
+                    });
+                }
+                var chartConfig = {
+                    chart: {
+                        type: 'heatmap'
+                    },
+                    title: {
+                        text: 'Какую категорию покупают вместе с другой катеорией',
+                        align: 'center',
+                        margin: 10,
+                        floating: false
+                    },
+                    dataLabels: {
+                        enabled: true,
+                        formatter: function(val) {
+                            return val.toFixed(2);
+                        }
+                    },
+                    yaxis: {
+                        title: {
+                            text: 'Категория 1'
+                        }
+                    },
+                    xaxis: {
+                        title: {
+                            text: 'Категория 2'
+                        }
+                    },
+                    colors: ["#008FFB"],
+                    series: series
+                };
+                chart = new ApexCharts(
+                    window.chartBlock,
+                    chartConfig
+                );
+                chart.render();
+            }
+        });
+    }
+
+    function showAbortedCartsReport() {
+        $.ajax("/aborted_carts", {
+            data: {
+                'start_date': window.startDate.value,
+                'end_date': window.endDate.value
+            },
+            
+            success: function(data) {
+                show(window.chartBlock);
+                show(window.dateSelectBlock);
+                data = JSON.parse(data);
+                var chartConfig = {
+                    chart: {
+                        type: 'radialBar',
+                        height: 300
+                    },
+                    title: {
+                        text: 'Количество брошенных корзин',
+                        align: 'center',
+                        floating: false,
+                        margin: -30
+                    },
+                    dataLabels: {
+                        enabled: false
+                    },
+                    series: [(data['aborted'] * 100 / data['total']).toFixed(0)],
+                    labels: [ data['aborted'] + '/' + data['total'] ]
+                };
+                chart = new ApexCharts(
+                    window.chartBlock,
+                    chartConfig
+                );
+                chart.render();
+            }
+        });
+    }
+
+    function showComebackUsersReport() {
+        $.ajax("/comeback_users", {
+            data: {
+                'start_date': window.startDate.value,
+                'end_date': window.endDate.value
+            },
+
+            success: function(data) {
+                show(window.chartBlock);
+                show(window.dateSelectBlock);
+                data = JSON.parse(data);
+                var chartConfig = {
+                    chart: {
+                        type: 'radialBar',
+                        height: 300
+                    },
+                    title: {
+                        text: 'Количество вернувшихся пользователей',
+                        align: 'center',
+                        floating: false,
+                        margin: -30
+                    },
+                    dataLabels: {
+                        enabled: false
+                    },
+                    series: [(data['comeback'] * 100 / data['total']).toFixed(0)],
+                    labels: [ data['comeback'] + '/' + data['total'] ]
+                };
+                chart = new ApexCharts(
+                    window.chartBlock,
+                    chartConfig
+                );
+                chart.render();
+            }
+        });
+    }
+
+    function hideAllReports() {
+        if (chart) {
+            chart.destroy();        
+            chart = undefined;
+        }
+        hide(window.chartBlock);
+        hide(window.categorySelectorBlock);
+        hide(window.dateSelectBlock);
+    }
+
+    function updateReport() {
+        hideAllReports();
+        switch(window.reportSelector.value) {
+            case "actions_by_country":
+                showActionsByCountryReport();
+                break;
+            case "interests_by_country":
+                showInterestsByCountryReport();
+                break;
+            case "requests_by_time":
+                showRequestsByTimeReport();
+                break;
+            case "site_load":
+                showSiteLoadReport();
+                break;
+            case "related_categories":
+                showRelatedCategoriesReport();
+                break;
+            case "aborted_carts":
+                showAbortedCartsReport();
+                break;
+            case "comeback_users":
+                showComebackUsersReport();
+                break;
+        }
+    }
+</script>
+<body onload="onLoad()">
+    <h1>Анализатор логов интернет-магазина "Все на дно!"</h1>
+
+    <select id="report_selector" onchange="updateReport()">
+        <option>Выберите тип отчета</option>
+        <option value="actions_by_country">1) Посетители из какой страны совершают больше всего действий на сайте?</option>
+        <option value="interests_by_country">2) Посетители из какой страны чаще всего интересуются товарами из определенных категорий?</option>
+        <option value="requests_by_time">3) В какое время суток чаще всего просматривают определенную категорию товаров?</option>
+        <option value="site_load">4) Какая нагрузка (число запросов) на сайт за астрономический час?</option>
+        <option value="related_categories">5) Товары из какой категории чаще всего покупают совместно с товаром из заданной категории?</option>
+        <option value="aborted_carts">6) Сколько брошенных (не оплаченных) корзин имеется за определенный период?</option>
+        <option value="comeback_users">7) Какое количество пользователей совершали повторные покупки за определенный период?</option>
+    </select>
+
+    <br/>
+    <br/>
+
+    <div id="category_selector_block" hidden="hidden">
+        <label for="category_selector">Категория товаров: </label>
+        <select id="category_selector" onchange="updateReport()">
+            {% for id, name in categories.items() %}
+                <option value="{{ id }}">{{name}}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div id="date_select_block" hidden="hidden">
+        <label for="start_date">Начальная дата: </label>
+        <input type="date" id="start_date" onchange="updateReport()"/>
+        <label for="start_date">Конечная дата: </label>
+        <input type="date" id="end_date" onchange="updateReport()"/>
+    </div>
+
+    <div id="chart_block" hidden="hidden"></div>
+
+</body>
