@@ -9,14 +9,26 @@ DB_NAME = 'all_to_the_bottom'
 
 class Ip2CountryMapper:
     def __init__(self):
-        self.db = geoip2.database.Reader('GeoLite2-Country.mmdb')
+        base_path = os.path.dirname(os.path.realpath(__file__))
+        ip_database_path = os.path.join(base_path, 'GeoLite2-Country.mmdb')
+        self.db = geoip2.database.Reader(ip_database_path)
     
     def country(self, ip, default=None):
         try:
-            country = self.db.country(ip)
-            return country.country.names['en']
+            info = self.db.country(ip)
+            return info.country.names['en']
         except:
             return default
+
+class IpTracker:
+    def __init__(self):
+        self.last_page = {}
+
+    def visit(self, ip, page):
+        self.last_page[ip] = page
+
+    def get_last_page(self, ip):
+        return self.last_page[ip]
 
 
 def get_url_args(url):
@@ -37,11 +49,11 @@ def main():
     actions = db.get_collection("actions")
     carts = db.get_collection("carts")
 
-    last_visit = dict()
+    ip_tracker = IpTracker()
     ip_mapper = Ip2CountryMapper()
     regexp = re.compile(r'^shop_api      \| (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[\w+\] INFO: (\d{1,3}\.\d{1,3}.\d{1,3}.\d{1,3}) https://all_to_the_bottom.com(.*)')
     with open(args.logs_file, "r") as logs_file:
-        for line in logs_file.readlines():
+        for line in logs_file:
             action_time, ip, url = regexp.findall(line.strip())[0]
             action_time = datetime.strptime(action_time, '%Y-%m-%d %H:%M:%S')
             country = ip_mapper.country(ip)
@@ -62,13 +74,14 @@ def main():
                         'created_at': action['at'],
                         'goods': []
                     })
+                category, good = ip_tracker.get_last_page(ip)
                 carts.update_one({
                     'id': action['cart_id']
                 }, {
                     '$push': {
                         'goods': {
-                            'good': last_visit[ip][1],
-                            'category': last_visit[ip][0],
+                            'good': good,
+                            'category': category,
                             'amount': action['amount']
                         }
                     }
@@ -105,7 +118,7 @@ def main():
                 action['category'] = category
                 action['good'] = good
                 actions.insert_one(action)
-                last_visit[ip] = (category, good)
+                ip_tracker.visit(ip, (category, good))
     client.close()
 
 
